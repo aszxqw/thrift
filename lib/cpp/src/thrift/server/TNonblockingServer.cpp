@@ -437,11 +437,13 @@ void TNonblockingServer::TConnection::init(int socket,
 }
 
 void TNonblockingServer::TConnection::workSocket() {
+  std::cout << __FILE__ << __LINE__ << "TNonblockingServer::TConnection::workSocket()" << std::endl;
   int got=0, left=0, sent=0;
   uint32_t fetch = 0;
 
   switch (socketState_) {
   case SOCKET_RECV_FRAMING:
+    std::cout << __FILE__ << __LINE__ << "SOCKET_RECV_FRAMING" << std::endl;
     union {
       uint8_t buf[sizeof(uint32_t)];
       uint32_t size;
@@ -486,10 +488,12 @@ void TNonblockingServer::TConnection::workSocket() {
       return;
     }
     // size known; now get the rest of the frame
+    std::cout << __FILE__ << __LINE__ << "size known; now get the rest of the frame" << std::endl;
     transition();
     return;
 
   case SOCKET_RECV:
+    std::cout << __FILE__ << __LINE__ << "SOCKET_RECV" << std::endl;
     // It is an error to be in this state if we already have all the data
     assert(readBufferPos_ < readWant_);
 
@@ -514,6 +518,7 @@ void TNonblockingServer::TConnection::workSocket() {
 
       // We are done reading, move onto the next state
       if (readBufferPos_ == readWant_) {
+        std::cout << __FILE__ << __LINE__ << " We are done reading, move onto the next state" << std::endl;
         transition();
       }
       return;
@@ -525,12 +530,14 @@ void TNonblockingServer::TConnection::workSocket() {
     return;
 
   case SOCKET_SEND:
+    std::cout << __FILE__ << __LINE__ << "SOCKET_SEND" << std::endl;
     // Should never have position past size
     assert(writeBufferPos_ <= writeBufferSize_);
 
     // If there is no data to send, then let us move on
     if (writeBufferPos_ == writeBufferSize_) {
       GlobalOutput("WARNING: Send state with no data to send\n");
+      std::cout << __FILE__ << __LINE__ << "writeBufferPos_ done" << std::endl;
       transition();
       return;
     }
@@ -552,6 +559,7 @@ void TNonblockingServer::TConnection::workSocket() {
 
     // We are done!
     if (writeBufferPos_ == writeBufferSize_) {
+      std::cout << __FILE__ << __LINE__ << "writeBufferPos_ done" << std::endl;
       transition();
     }
 
@@ -577,6 +585,7 @@ void TNonblockingServer::TConnection::transition() {
   switch (appState_) {
 
   case APP_READ_REQUEST:
+    std::cout << __FILE__ << __LINE__ << "APP_READ_REQUEST" << std::endl;
     // We are done reading the request, package the read buffer into transport
     // and get back some data from the dispatch function
     inputTransport_->resetBuffer(readBuffer_, readBufferPos_);
@@ -646,6 +655,7 @@ void TNonblockingServer::TConnection::transition() {
     // the writeBuffer_
 
   case APP_WAIT_TASK:
+    std::cout << __FILE__ << __LINE__ << "APP_WAIT_TASK"<<std::endl;
     // We have now finished processing a task and the result has been written
     // into the outputTransport_, so we grab its contents and place them into
     // the writeBuffer_ for actual writing by the libevent thread
@@ -682,6 +692,7 @@ void TNonblockingServer::TConnection::transition() {
     goto LABEL_APP_INIT;
 
   case APP_SEND_RESULT:
+    std::cout << __FILE__ << __LINE__ << "APP_SEND_RESULT"<<std::endl;
     // it's now safe to perform buffer size housekeeping.
     if (writeBufferSize_ > largestWriteBufferSize_) {
       largestWriteBufferSize_ = writeBufferSize_;
@@ -697,6 +708,7 @@ void TNonblockingServer::TConnection::transition() {
 
   LABEL_APP_INIT:
   case APP_INIT:
+    std::cout << __FILE__ << __LINE__ << "APP_INIT" <<std::endl;
 
     // Clear write buffer variables
     writeBuffer_ = NULL;
@@ -718,6 +730,7 @@ void TNonblockingServer::TConnection::transition() {
     return;
 
   case APP_READ_FRAME_SIZE:
+    std::cout << __FILE__ << __LINE__ << "APP_READ_FRAME_SIZE"<<std::endl;
     // We just read the request length
     // Double the buffer size until it is big enough
     if (readWant_ > readBufferSize_) {
@@ -750,6 +763,7 @@ void TNonblockingServer::TConnection::transition() {
     return;
 
   case APP_CLOSE_CONNECTION:
+    std::cout << __FILE__ << __LINE__ << std::endl;
     server_->decrementActiveProcessors();
     close();
     return;
@@ -925,6 +939,7 @@ void TNonblockingServer::returnConnection(TConnection* connection) {
  * connections on fd and assign TConnection objects to handle those requests.
  */
 void TNonblockingServer::handleEvent(int fd, short which) {
+  std::cout << __FILE__ << __LINE__ << "TNonblockingServer::handleEvent" << std::endl;
   (void) which;
   // Make sure that libevent didn't mess up the socket handles
   assert(fd == serverSocket_);
@@ -944,6 +959,7 @@ void TNonblockingServer::handleEvent(int fd, short which) {
   while ((clientSocket = ::accept(fd, addrp, &addrLen)) != -1) {
     // If we're overloaded, take action here
     if (overloadAction_ != T_OVERLOAD_NO_ACTION && serverOverloaded()) {
+      std::cout << __FILE__ << __LINE__ << "overloadAction_" << std::endl;
       Guard g(connMutex_);
       nConnectionsDropped_++;
       nTotalConnectionsDropped_++;
@@ -968,6 +984,7 @@ void TNonblockingServer::handleEvent(int fd, short which) {
       return;
     }
 
+    std::cout << __FILE__ << __LINE__ << "Create a new TConnection for this client socket." << std::endl;
     // Create a new TConnection for this client socket.
     TConnection* clientConnection =
       createConnection(clientSocket, addrp, addrLen);
@@ -992,8 +1009,10 @@ void TNonblockingServer::handleEvent(int fd, short which) {
      * we know it's not on our thread.
      */
     if (clientConnection->getIOThreadNumber() == 0) {
+      std::cout << __FILE__ << __LINE__ << "iothreadnumber = 0" << std::endl;
       clientConnection->transition();
     } else {
+      std::cout << __FILE__ << __LINE__ << "clientConnection->notifyIOThread()" << std::endl;
       clientConnection->notifyIOThread();
     }
 
@@ -1376,6 +1395,7 @@ bool TNonblockingIOThread::notify(TNonblockingServer::TConnection* conn) {
 
 /* static */
 void TNonblockingIOThread::notifyHandler(evutil_socket_t fd, short which, void* v) {
+  std::cout << __FILE__ << __LINE__ << "notifyHandler" << std::endl;
   TNonblockingIOThread* ioThread = (TNonblockingIOThread*) v;
   assert(ioThread);
   (void)which;
@@ -1389,6 +1409,7 @@ void TNonblockingIOThread::notifyHandler(evutil_socket_t fd, short which, void* 
         // this is the command to stop our thread, exit the handler!
         return;
       }
+      std::cout << __FILE__ << __LINE__ << "TNonblockingIOThread::notifyHandler" << std::endl;
       connection->transition();
     } else if (nBytes > 0) {
       // throw away these bytes and hope that next time we get a solid read
