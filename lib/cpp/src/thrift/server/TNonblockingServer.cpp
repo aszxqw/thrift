@@ -300,6 +300,7 @@ class TNonblockingServer::TConnection {
   /// Force connection shutdown for this connection.
   void forceClose() {
     appState_ = APP_CLOSE_CONNECTION;
+    cout << __FILE__ << __LINE__ << "notifyIOThread" << endl;
     if (!notifyIOThread()) {
       throw TException("TConnection::forceClose: failed write on notify pipe");
     }
@@ -370,6 +371,7 @@ class TNonblockingServer::TConnection::Task: public Runnable {
     }
 
     // Signal completion back to the libevent thread via a pipe
+    cout << __FILE__ << __LINE__ << "connection_->notifyIOThread()" << endl;
     if (!connection_->notifyIOThread()) {
       throw TException("TNonblockingServer::Task::run: failed write on notify pipe");
     }
@@ -620,6 +622,7 @@ void TNonblockingServer::TConnection::transition() {
       // Set this connection idle so that libevent doesn't process more
       // data on it while we're still waiting for the threadmanager to
       // finish this task
+      cout << __FILE__ << __LINE__ << "setIdle" << endl;
       setIdle();
       return;
     } else {
